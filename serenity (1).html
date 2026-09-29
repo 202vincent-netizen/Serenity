@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serenity AI 股票觀點追蹤</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: #0a0a0a;
+            --border-color: #222222;
+            --text-main: #e0e0e0;
+            --text-muted: #888888;
+            --bullish-text: #00ff88;
+            --bullish-bg: rgba(0, 255, 136, 0.1);
+            --bearish-text: #ff4444;
+            --bearish-bg: rgba(255, 68, 68, 0.1);
+            --neutral-text: #aaaaaa;
+            --neutral-bg: rgba(170, 170, 170, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px 0;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            margin: 0 0 10px 0;
+            font-size: 32px;
+            letter-spacing: 1px;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .top-pick-container {
+            background: linear-gradient(145deg, #111111 0%, #050505 100%);
+            border: 1px solid #333333;
+            border-radius: 12px;
+            padding: 30px 20px;
+            margin-bottom: 40px;
+            text-align: center;
+            box-shadow: 0 4px 30px rgba(0, 255, 136, 0.03);
+            display: none; /* 預設隱藏，讀取到資料才顯示 */
+        }
+
+        .top-pick-title {
+            color: #999;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .top-pick-ticker {
+            font-size: 56px;
+            font-weight: 900;
+            color: var(--bullish-text);
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+            margin: 0 0 10px 0;
+            line-height: 1;
+        }
+
+        .top-pick-count {
+            font-size: 15px;
+            color: var(--text-muted);
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 24px;
+            transition: border-color 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card:hover {
+            border-color: #444444;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .ticker {
+            font-size: 24px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+
+        .stance {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 1px solid transparent;
+        }
+
+        .stance.bullish {
+            background-color: var(--bullish-bg);
+            color: var(--bullish-text);
+            border-color: rgba(0, 255, 136, 0.2);
+        }
+
+        .stance.bearish {
+            background-color: var(--bearish-bg);
+            color: var(--bearish-text);
+            border-color: rgba(255, 68, 68, 0.2);
+        }
+
+        .stance.neutral {
+            background-color: var(--neutral-bg);
+            color: var(--neutral-text);
+            border-color: rgba(170, 170, 170, 0.2);
+        }
+
+        .reasoning {
+            font-size: 15px;
+            color: #cccccc;
+            margin-bottom: 20px;
+            line-height: 1.7;
+            font-weight: 500;
+        }
+
+        .content {
+            font-size: 13px;
+            color: #777777;
+            background-color: #030303;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #151515;
+            margin-bottom: 16px;
+            flex-grow: 1;
+            font-style: italic;
+            word-break: break-word;
+        }
+
+        .date {
+            font-size: 12px;
+            color: #555555;
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .status-message {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px;
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 600px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Serenity 觀點追蹤</h1>
+        <p>AI 自動分析 @aleabitoreddit 的 X 貼文與股票立場</p>
+    </div>
+
+    <!-- 最看好標的區塊 -->
+    <div class="top-pick-container" id="topPickContainer">
+        <div class="top-pick-title">🔥 目前最看好標的</div>
+        <div class="top-pick-ticker" id="topPickTicker">-</div>
+        <div class="top-pick-count" id="topPickCount">載入中...</div>
+    </div>
+
+    <!-- 卡片列表區塊 -->
+    <div class="grid-container" id="cardContainer">
+        <div class="status-message">正在連線取得最新分析資料...</div>
+    </div>
+</div>
+
+<script>
+    function updateTopPick(data) {
+        const bullishCounts = {};
+        let maxCount = 0;
+        let topTicker = null;
+
+        // 計算每檔股票的 Bullish 次數
+        data.forEach(item => {
+            if (item.stance === 'Bullish' && item.ticker && item.ticker.trim() !== '') {
+                const ticker = item.ticker.toUpperCase();
+                bullishCounts[ticker] = (bullishCounts[ticker] || 0) + 1;
+                if (bullishCounts[ticker] > maxCount) {
+                    maxCount = bullishCounts[ticker];
+                    topTicker = ticker;
+                }
+            }
+        });
+
+        const container = document.getElementById('topPickContainer');
+        
+        // 如果有算到看好的標的，就顯示出來
+        if (topTicker) {
+            container.style.display = 'block';
+            document.getElementById('topPickTicker').innerText = topTicker;
+            document.getElementById('topPickCount').innerText = `近期累計 ${maxCount} 次看多訊號`;
+        } else {
+            container.style.display = 'block';
+            document.getElementById('topPickTicker').innerText = '無';
+            document.getElementById('topPickCount').innerText = '近期尚無明顯看多標的';
+        }
+    }
+
+    function renderCards(data) {
+        const container = document.getElementById('cardContainer');
+        container.innerHTML = ''; // 清空預設的 Loading 訊息
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="status-message">目前還沒有分析資料，請等待系統自動更新。</div>';
+            return;
+        }
+
+        data.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            // 日期格式化處理
+            let dateStr = item.date || '未知日期';
+            try {
+                const dateObj = new Date(item.date);
+                if (!isNaN(dateObj)) {
+                    // 將時間轉為 YYYY-MM-DD HH:MM
+                    const y = dateObj.getFullYear();
+                    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const d = String(dateObj.getDate()).padStart(2, '0');
+                    const h = String(dateObj.getHours()).padStart(2, '0');
+                    const min = String(dateObj.getMinutes()).padStart(2, '0');
+                    dateStr = `${y}-${m}-${d} ${h}:${min}`;
+                }
+            } catch(e) {
+                console.error("日期解析失敗", e);
+            }
+
+            // 確保有預設值避免空白
+            const tickerText = item.ticker ? item.ticker.toUpperCase() : '未提及股票';
+            const stanceValue = item.stance || 'Neutral';
+            const stanceClass = stanceValue.toLowerCase();
+            const reasoningText = item.reasoning || '無具體結論';
+            const contentText = item.content || '無貼文內容';
+
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="ticker">${tickerText}</div>
+                    <div class="stance ${stanceClass}">${stanceValue}</div>
+                </div>
+                <div class="reasoning">💡 ${reasoningText}</div>
+                <div class="content">"${contentText}"</div>
+                <div class="date">${dateStr}</div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    async function loadData() {
+        try {
+            // 加入時間戳避免快取，確保每次讀取都是最新的 data.json
+            const timestamp = new Date().getTime();
+            const response = await fetch(`data.json?t=${timestamp}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // 執行計算置頂標的與渲染畫面
+            updateTopPick(data);
+            renderCards(data);
+            
+        } catch (error) {
+            console.error("載入資料失敗:", error);
+            document.getElementById('cardContainer').innerHTML = 
+                `<div class="status-message">無法讀取 data.json 資料。<br>請確認 GitHub Actions 是否已成功執行。</div>`;
+        }
+    }
+
+    // 當網頁完全載入後觸發資料讀取
+    document.addEventListener('DOMContentLoaded', loadData);
+</script>
+
+</body>
+</html>
