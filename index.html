@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serenity (aleabitoreddit) 觀點追蹤器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 讓日期選擇器在深色模式下能正常顯示白字 */
+        ::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+    </style>
+</head>
+<body class="bg-black text-gray-200 font-sans p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white">供應鏈偵探觀點追蹤</h1>
+                <p class="text-sm text-gray-400 mt-1">追蹤並分析半導體與 AI 基礎建設潛力股</p>
+            </div>
+            <a href="https://x.com/aleabitoreddit" target="_blank" class="px-4 py-2 bg-gray-800 border border-gray-700 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition">
+                前往 @aleabitoreddit 的 X 首頁
+            </a>
+        </header>
+
+        <!-- Top Pick Section -->
+        <section class="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800">
+            <h2 class="text-lg font-semibold text-blue-400 mb-2 flex items-center gap-2">
+                🏆 當下最看好股票 (提及最多次)
+            </h2>
+            <div id="top-picks" class="text-3xl font-bold text-blue-300">
+                載入中...
+            </div>
+        </section>
+
+        <!-- Settings & Input Section -->
+        <section class="bg-gray-900 p-6 rounded-xl shadow-sm border border-gray-800 space-y-4">
+            <h2 class="text-lg font-semibold border-b border-gray-700 pb-2 text-white">新增貼文分析</h2>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-1">Gemini API Key (僅儲存於本地端瀏覽器)</label>
+                <input type="password" id="api-key" placeholder="輸入你的 Gemini API Key" class="w-full p-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-400 mb-1">貼文內容</label>
+                    <textarea id="tweet-text" rows="3" placeholder="貼上 Serenity 的最新推文..." class="w-full p-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">貼文時間</label>
+                    <input type="datetime-local" id="tweet-time" class="w-full p-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+
+            <button onclick="analyzeAndAdd()" id="submit-btn" class="w-full bg-blue-600 text-white font-medium py-2 rounded-md hover:bg-blue-700 transition flex justify-center items-center gap-2">
+                <span>用 AI 分析並新增記錄</span>
+                <svg id="loading-icon" class="animate-spin h-5 w-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            </button>
+        </section>
+
+        <!-- History Section -->
+        <section>
+            <h2 class="text-lg font-semibold mb-4 pl-1 text-white">觀點紀錄</h2>
+            <div id="tweets-container" class="space-y-4">
+                <!-- Tweets will be injected here -->
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // 1. 已知的預設資料 (預先載入)
+        let tweetsData = [
+            {
+                id: Date.now() - 100000,
+                time: "2026-09-25T08:30",
+                text: "The optical transceiver supply chain is undergoing a massive shift. While everyone looks at the big players, smaller component providers like Fabrinet (FN) are quietly absorbing the 800G/1.6T demand shock. Huge upside here.",
+                analysis: [
+                    { ticker: "FN", stance: "Bullish", reasoning: "Absorbing massive demand shock for 800G/1.6T transceivers." }
+                ]
+            },
+            {
+                id: Date.now() - 200000,
+                time: "2026-09-20T14:15",
+                text: "Advanced packaging constraints remain the bottleneck. Equipment providers are seeing pulled-in orders. Keep an eye on ASMPT and Camtek (CAMT) as they secure critical spots in next-gen TSMC lines.",
+                analysis: [
+                    { ticker: "ASMPT", stance: "Bullish", reasoning: "Securing spots in next-gen TSMC packaging lines." },
+                    { ticker: "CAMT", stance: "Bullish", reasoning: "Securing spots in next-gen TSMC packaging lines." }
+                ]
+            }
+        ];
+
+        // 初始化頁面
+        document.addEventListener('DOMContentLoaded', () => {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('tweet-time').value = now.toISOString().slice(0,16);
+            
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if(savedKey) document.getElementById('api-key').value = savedKey;
+
+            renderApp();
+        });
+
+        // 計算並更新最看好股票
+        function updateTopPicks() {
+            const counts = {};
+            tweetsData.forEach(tweet => {
+                tweet.analysis.forEach(item => {
+                    if (item.stance === 'Bullish') {
+                        counts[item.ticker] = (counts[item.ticker] || 0) + 1;
+                    }
+                });
+            });
+
+            const topPicksDiv = document.getElementById('top-picks');
+            if (Object.keys(counts).length === 0) {
+                topPicksDiv.innerHTML = "<span class='text-gray-500 text-lg'>目前無資料</span>";
+                return;
+            }
+
+            let maxCount = 0;
+            for (let ticker in counts) {
+                if (counts[ticker] > maxCount) maxCount = counts[ticker];
+            }
+
+            const bestTickers = Object.keys(counts).filter(ticker => counts[ticker] === maxCount);
+            topPicksDiv.innerHTML = `${bestTickers.join(', ')} <span class="text-sm font-normal text-blue-400 ml-2">(提及 ${maxCount} 次)</span>`;
+        }
+
+        // 渲染貼文列表
+        function renderApp() {
+            updateTopPicks();
+            const container = document.getElementById('tweets-container');
+            container.innerHTML = '';
+
+            tweetsData.sort((a, b) => new Date(b.time) - new Date(a.time)).forEach(tweet => {
+                let tagsHTML = tweet.analysis.map(item => {
+                    // 深色模式下的標籤顏色
+                    const color = item.stance === 'Bullish' ? 'bg-green-900 bg-opacity-40 text-green-400 border-green-800' : 
+                                  item.stance === 'Bearish' ? 'bg-red-900 bg-opacity-40 text-red-400 border-red-800' : 
+                                  'bg-gray-800 text-gray-300 border-gray-700';
+                    return `
+                        <div class="border rounded-md p-3 ${color}">
+                            <div class="font-bold flex items-center gap-1">
+                                ${item.stance === 'Bullish' ? '📈' : item.stance === 'Bearish' ? '📉' : '➖'} 
+                                ${item.ticker}
+                            </div>
+                            <div class="text-sm mt-1 opacity-90">${item.reasoning}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                if(tweet.analysis.length === 0) {
+                    tagsHTML = `<div class="text-sm text-gray-500 italic">未偵測到明確股票提及</div>`;
+                }
+
+                container.innerHTML += `
+                    <div class="bg-gray-900 p-5 rounded-xl shadow-sm border border-gray-800">
+                        <div class="text-xs text-gray-500 mb-2">${new Date(tweet.time).toLocaleString('zh-TW')}</div>
+                        <p class="text-gray-200 mb-4 whitespace-pre-wrap">${tweet.text}</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            ${tagsHTML}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 呼叫 Gemini API 進行分析
+        async function analyzeAndAdd() {
+            const apiKey = document.getElementById('api-key').value.trim();
+            const text = document.getElementById('tweet-text').value.trim();
+            const time = document.getElementById('tweet-time').value;
+
+            if (!apiKey || !text) {
+                alert("請填寫 API Key 與貼文內容！");
+                return;
+            }
+
+            localStorage.setItem('gemini_api_key', apiKey);
+
+            const btn = document.getElementById('submit-btn');
+            const icon = document.getElementById('loading-icon');
+            btn.disabled = true;
+            icon.classList.remove('hidden');
+
+            const prompt = `
+            你是一位專業的半導體與科技股分析師。請分析以下推文。
+            找出推文中提及的上市櫃公司（可能包含暗示或直接點名），並判斷作者對該公司的立場。
+            
+            推文內容："${text}"
+            
+            請嚴格只輸出 JSON 陣列格式，不要包含任何 markdown 標記(如 \`\`\`json)，只需純粹的 JSON 字串，格式如下：
+            [{"ticker": "股票代號或名稱", "stance": "Bullish 或 Bearish 或 Neutral", "reasoning": "一句話解釋"}]
+            若無提及公司請回傳 []。
+            `;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                if (!response.ok) throw new Error("API 請求失敗，請檢查金鑰是否正確");
+                
+                const result = await response.json();
+                let resultText = result.candidates[0].content.parts[0].text;
+                
+                resultText = resultText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const analysisData = JSON.parse(resultText);
+
+                tweetsData.push({
+                    id: Date.now(),
+                    time: time,
+                    text: text,
+                    analysis: analysisData
+                });
+
+                document.getElementById('tweet-text').value = '';
+                renderApp();
+
+            } catch (error) {
+                console.error(error);
+                alert("分析過程中發生錯誤：" + error.message);
+            } finally {
+                btn.disabled = false;
+                icon.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
