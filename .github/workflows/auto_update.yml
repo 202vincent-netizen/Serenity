@@ -2,19 +2,21 @@ name: Auto Update Serenity Stocks
 
 on:
   schedule:
-    # 設定每 4 小時自動執行一次 (時間格式為 UTC)
     - cron: '0 */4 * * *'
-  workflow_dispatch: # 允許在網頁上手動點擊執行
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
     steps:
       - name: 下載專案程式碼
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 
 
       - name: 設定 Python 環境
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 
         with:
           python-version: '3.10'
 
@@ -30,6 +32,12 @@ jobs:
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'actions@github.com'
-          git add data.json
-          git commit -m "Auto-update stock data" || exit 0
-          git push
+          
+          # 加入 if 判斷式：如果檔案存在才 add 與 push
+          if [ -f data.json ]; then
+            git add data.json
+            git commit -m "Auto-update stock data" || echo "No changes to commit"
+            git push
+          else
+            echo "沒有新貼文或 RSS 抓取被阻擋，未產生 data.json，跳過推送。"
+          fi
