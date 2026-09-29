@@ -6,7 +6,7 @@ from google.genai import types
 
 # 從 GitHub Actions 的環境變數讀取金鑰
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-RSS_URL = 'https://rsshub.rssforever.com/twitter/user/aleabitoreddit'
+RSS_URL = 'https://rsshub.lipten.link/twitter/user/aleabitoreddit'
 DATA_FILE = 'data.json'
 
 if not GEMINI_API_KEY:
